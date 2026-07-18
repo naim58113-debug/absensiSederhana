@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Absensi Harian Ultimate</title>
+    
+    <!-- Memasukkan Library ExcelJS dan FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        h2 {
+            text-align: center;
+            color: #1F4E78;
+        }
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            align-items: center;
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .tambah-anggota {
+            display: flex;
+            gap: 10px;
+        }
+        .tambah-anggota input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
+        input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #1F4E78;
+            color: white;
+            text-align: center;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn-group, .import-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        .import-group {
+            justify-content: flex-start;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Warna Tombol */
+        .btn-tambah { background-color: #17a2b8; }
+        .btn-tambah:hover { background-color: #138496; }
+        .btn-hapus { background-color: #dc3545; padding: 5px 10px; font-size: 12px; }
+        .btn-hapus:hover { background-color: #c82333; }
+        .btn-reset { background-color: #6c757d; }
+        .btn-reset:hover { background-color: #5a6268; }
+        .btn-import { background-color: #6f42c1; }
+        .btn-import:hover { background-color: #59339d; }
+        .btn-export-txt { background-color: #007bff; }
+        .btn-export-txt:hover { background-color: #0056b3; }
+        .btn-export-excel { background-color: #1D6F42; } /* Warna Hijau Khas Excel */
+        .btn-export-excel:hover { background-color: #144c2d; }
+
+        .summary {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            font-weight: bold;
+            border-left: 5px solid #2196f3;
+        }
+        
+        #fileImport { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>SISTEM ABSENSI & REKAP</h2>
+    
+    <div class="header-controls">
+        <div class="import-group">
+            <input type="file" id="fileImport" accept=".csv" onchange="prosesImportCSV(event)">
+            <button class="btn-import" onclick="document.getElementById('fileImport').click()">📥 Import CSV</button>
+        </div>
+        <div class="tambah-anggota">
+            <input type="text" id="namaBaru" placeholder="Ketik nama...">
+            <button class="btn-tambah" onclick="tambahAnggota()">+ Tambah</button>
+        </div>
+        <div>
+            <label for="tanggal"><strong>Tanggal: </strong></label>
+            <input type="date" id="tanggal">
+        </div>
+    </div>
+
+    <div class="summary">
+        <span>✅ Hadir: <span id="totHadir" style="color: green;">0</span></span>
+        <span>⚠️ Izin: <span id="totIzin" style="color: orange;">0</span></span>
+        <span>❌ Tidak Hadir: <span id="totAlpa" style="color: red;">0</span></span>
+        <span style="margin-left: auto;">Total Anggota: <span id="totAnggota">0</span></span>
+    </div>
+
+    <table id="absenTable">
+        <thead>
+            <tr>
+                <th width="5%">No</th>
+                <th width="25%">Nama Anggota</th>
+                <th width="20%">Status</th>
+                <th width="40%">Keterangan</th>
+                <th width="10%">Aksi</th>
+            </tr>
+        </thead>
+        <tbody 
+            id="tableBody">
+        </tbody>
+    </table>
+
+    <div class="btn-group">
+        <button class="btn-reset" onclick="resetForm()">🔄 Reset (Hari Baru)</button>
+        <button class="btn-export-txt" onclick="exportToTXT()">📄 Export ke TXT</button>
+        <button class="btn-export-excel" onclick="exportToExcel()">📊 Export ke Excel (.xlsx)</button>
+    </div>
+</div>
+
+<script>
+    let daftarNama = JSON.parse(localStorage.getItem('dataAnggota')) || [];
+    const tableBody = document.getElementById('tableBody');
+
+    function simpanData() {
+        localStorage.setItem('dataAnggota', JSON.stringify(daftarNama));
+    }
+
+    function getStatusSaatIni() {
+        let state = [];
+        document.querySelectorAll('#tableBody tr').forEach(row => {
+            state.push({
+                status: row.querySelector('.status-select').value,
+                ket: row.querySelector('.ket-input').value
+            });
+        });
+        return state;
+    }
+
+    function renderTable(state = null) {
+        tableBody.innerHTML = '';
+        daftarNama.forEach((nama, index) => {
+            const tr = document.createElement('tr');
+            let valStatus = state && state[index] ? state[index].status : "";
+            let valKet = state && state[index] ? state[index].ket.replace(/"/g, '&quot;') : "";
+
+            tr.innerHTML = `
+                <td style="text-align:center">${index + 1}</td>
+                <td>${nama}</td>
+                <td>
+                    <select class="status-select" onchange="hitungRekap()">
+                        <option value="" ${valStatus === "" ? "selected" : ""}>-- Pilih --</option>
+                        <option value="Hadir" ${valStatus === "Hadir" ? "selected" : ""}>Hadir</option>
+                        <option value="Izin" ${valStatus === "Izin" ? "selected" : ""}>Izin</option>
+                        <option value="Tidak Hadir" ${valStatus === "Tidak Hadir" ? "selected" : ""}>Tidak Hadir</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="ket-input" placeholder="Isi jika Izin/Tidak Hadir" value="${valKet}">
+                </td>
+                <td style="text-align:center">
+                    <button class="btn-hapus" onclick="hapusAnggota(${index})">Hapus</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+        
+        if(!document.getElementById('tanggal').value) {
+            document.getElementById('tanggal').valueAsDate = new Date();
+        }
+        document.getElementById('totAnggota').innerText = daftarNama.length;
+        hitungRekap();
+    }
+
+    function tambahAnggota() {
+        const namaInput = document.getElementById('namaBaru');
+        const namaBaru = namaInput.value.trim();
+        if (namaBaru !== "") {
+            let state = getStatusSaatIni(); 
+            daftarNama.push(namaBaru);
+            state.push({ status: "", ket: "" }); 
+
+            simpanData(); 
+            namaInput.value = ""; 
+            renderTable(state); 
+        } else {
+            alert("Nama tidak boleh kosong!");
+        }
+    }
+
+    function hapusAnggota(index) {
+        if (confirm(`Hapus "${daftarNama[index]}" dari daftar?`)) {
+            let state = getStatusSaatIni(); 
+            daftarNama.splice(index, 1); 
+            state.splice(index, 1); 
+
+            simpanData();
+            renderTable(state);
+        }
+    }
+
+    function hitungRekap() {
+        let hadir = 0, izin = 0, alpa = 0;
+        document.querySelectorAll('.status-select').forEach(select => {
+            if(select.value === "Hadir") hadir++;
+            else if(select.value === "Izin") izin++;
+            else if(select.value === "Tidak Hadir") alpa++;
+        });
+        document.getElementById('totHadir').innerText = hadir;
+        document.getElementById('totIzin').innerText = izin;
+        document.getElementById('totAlpa').innerText = alpa;
+    }
+
+    function resetForm() {
+        if(confirm("Kosongkan semua status absen untuk lembar baru?")) {
+            renderTable(); 
+        }
+    }
+
+    function prosesImportCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const rows = text.split('\n');
+            let jumlahDitambahkan = 0;
+            let state = getStatusSaatIni(); 
+
+            rows.forEach(row => {
+                const nama = row.split(',')[0].trim();
+                if (nama && nama.toLowerCase() !== 'nama' && !daftarNama.includes(nama)) {
+                    daftarNama.push(nama);
+                    state.push({ status: "", ket: "" }); 
+                    jumlahDitambahkan++;
+                }
+            });
+
+            if (jumlahDitambahkan > 0) {
+                simpanData();
+                renderTable(state);
+                alert(`Berhasil mengimpor ${jumlahDitambahkan} nama baru!`);
+            } else {
+                alert("Tidak ada nama baru yang ditemukan.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; 
+    }
+
+    function exportToTXT() {
+        let tanggal = document.getElementById('tanggal').value || "Tanpa Tanggal";
+        let hadir = [], izin = [], alpa = [], belumAbsen = [];
+        const rows = document.querySelectorAll('#tableBody tr');
+        
+        rows.forEach((row, index) => {
+            const nama = daftarNama[index];
+            const status = row.querySelector('.status-select').value;
+            const ketInput = row.querySelector('.ket-input').value.trim();
+            const keterangan = ketInput ? ` (${ketInput})` : "";
+            const teksFormat = nama + keterangan;
+
+            if (status === "Hadir") hadir.push(teksFormat);
+            else if (status === "Izin") izin.push(teksFormat);
+            else if (status === "Tidak Hadir") alpa.push(teksFormat);
+            else belumAbsen.push(teksFormat);
+        });
+
+        let txtContent = `REKAP ABSENSI HARIAN\nTanggal: ${tanggal}\n==============================\n\n`;
+        txtContent += `✅ HADIR (${hadir.length}):\n` + (hadir.length ? hadir.map((n, i) => `${i + 1}. ${n}`).join('\n') : "-") + `\n\n`;
+        txtContent += `⚠️ IZIN (${izin.length}):\n` + (izin.length ? izin.map((n, i) => `${i + 1}. ${n}`).join('\n') : "-") + `\n\n`;
+        txtContent += `❌ TIDAK HADIR (${alpa.length}):\n` + (alpa.length ? alpa.map((n, i) => `${i + 1}. ${n}`).join('\n') : "-") + `\n\n`;
+        txtContent += `==============================\nTotal Anggota: ${daftarNama.length}`;
+
+        const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `WA_Absensi_${tanggal}.txt`;
+        link.click();
+    }
+
+    // ==========================================
+    // FITUR ULTIMATE: EXPORT NATIVE EXCEL (.XLSX)
+    // ==========================================
+    async function exportToExcel() {
+        // Cek apakah library termuat
+        if (typeof ExcelJS === 'undefined') {
+            alert("Sedang memuat library Excel, pastikan ada koneksi internet lalu coba lagi.");
+            return;
+        }
+
+        let tanggal = document.getElementById('tanggal').value || "Tanpa_Tanggal";
+        
+        // Buat Workbook dan Worksheet baru
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Sistem Absensi Web';
+        const worksheet = workbook.addWorksheet('Rekap Absensi');
+
+        // 1. Membuat Judul (Merge Cell, Warna, Bold)
+        worksheet.mergeCells('A1:D1');
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = 'REKAP ABSENSI HARIAN';
+        titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+        titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+        titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // 2. Info Tanggal
+        worksheet.getCell('A3').value = 'Tanggal:';
+        worksheet.getCell('A3').font = { bold: true };
+        worksheet.getCell('B3').value = tanggal;
+
+        // 3. Header Tabel
+        const headerRow = worksheet.getRow(5);
+        headerRow.values = ['No', 'Nama Anggota', 'Status Kehadiran', 'Keterangan'];
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        
+        // Styling Header (Warna Background & Border)
+        ['A5', 'B5', 'C5', 'D5'].forEach(cellRef => {
+            const cell = worksheet.getCell(cellRef);
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = {
+                top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+            };
+        });
+
+        // 4. Memasukkan Data Anggota
+        const rows = document.querySelectorAll('#tableBody tr');
+        let currentRow = 6;
+
+        rows.forEach((row, index) => {
+            const nama = daftarNama[index];
+            const status = row.querySelector('.status-select').value || "Belum Absen";
+            const keterangan = row.querySelector('.ket-input').value.trim() || "-";
+
+            const dataRow = worksheet.getRow(currentRow);
+            dataRow.values = [index + 1, nama, status, keterangan];
+
+            // Menambahkan Garis (Border) ke setiap sel data
+            ['A', 'B', 'C', 'D'].forEach(col => {
+                const cell = worksheet.getCell(`${col}${currentRow}`);
+                cell.border = {
+                    top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+                };
+                // Rata tengah khusus nomor dan status
+                if(col === 'A' || col === 'C') {
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                } else {
+                    cell.alignment = { vertical: 'middle' };
+                }
+            });
+            currentRow++;
+        });
+
+        // 5. Mengatur Lebar Kolom agar rapi
+        worksheet.getColumn('A').width = 8;
+        worksheet.getColumn('B').width = 30;
+        worksheet.getColumn('C').width = 20;
+        worksheet.getColumn('D').width = 40;
+
+        // 6. Menambahkan Ringkasan (Rekap Total) di bawah tabel
+        currentRow += 2;
+        worksheet.getCell(`B${currentRow}`).value = 'TOTAL HADIR:';
+        worksheet.getCell(`C${currentRow}`).value = document.getElementById('totHadir').innerText;
+        
+        worksheet.getCell(`B${currentRow+1}`).value = 'TOTAL IZIN:';
+        worksheet.getCell(`C${currentRow+1}`).value = document.getElementById('totIzin').innerText;
+        
+        worksheet.getCell(`B${currentRow+2}`).value = 'TOTAL TIDAK HADIR:';
+        worksheet.getCell(`C${currentRow+2}`).value = document.getElementById('totAlpa').innerText;
+
+        // Styling Ringkasan
+        [0, 1, 2].forEach(offset => {
+            const rowNum = currentRow + offset;
+            worksheet.getCell(`B${rowNum}`).font = { bold: true };
+            worksheet.getCell(`C${rowNum}`).font = { bold: true };
+            worksheet.getCell(`C${rowNum}`).alignment = { horizontal: 'center' };
+        });
+
+        // 7. Proses Download File
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `Rekap_Absensi_${tanggal}.xlsx`);
+    }
+
+    renderTable();
+</script>
+
+</body>
+</html>
